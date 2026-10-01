@@ -8,8 +8,8 @@ running and no race rig attached.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional, Union
 
 from ..models import Snapshot
 from ..storage.jsonl import iter_frames
@@ -29,7 +29,7 @@ class ReplaySource(TelemetrySource):
 
     def __init__(
         self,
-        path: Union[str, Path],
+        path: str | Path,
         *,
         realtime: bool = False,
         loop: bool = False,
@@ -39,7 +39,7 @@ class ReplaySource(TelemetrySource):
         self.realtime = realtime
         self.loop = loop
         self.rate_hz = rate_hz
-        self._frames: Optional[Iterator[Snapshot]] = None
+        self._frames: Iterator[Snapshot] | None = None
         self._last_wall = 0.0
 
     def connect(self) -> None:
@@ -48,7 +48,7 @@ class ReplaySource(TelemetrySource):
         self._frames = iter_frames(self.path)
         self._last_wall = time.monotonic()
 
-    def read(self) -> Optional[Snapshot]:
+    def read(self) -> Snapshot | None:
         if self._frames is None:
             raise RuntimeError("call connect() before read()")
         try:

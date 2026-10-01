@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Optional
 
 from ..models import Snapshot
 from .base import TelemetrySource
@@ -20,7 +19,7 @@ FUEL_PER_LAP = 2.6
 class MockSource(TelemetrySource):
     name = "mock"
 
-    def __init__(self, *, step_seconds: Optional[float] = None) -> None:
+    def __init__(self, *, step_seconds: float | None = None) -> None:
         """
         Args:
             step_seconds: when set, the mock runs on a virtual clock advancing by
@@ -50,7 +49,7 @@ class MockSource(TelemetrySource):
         self._virtual += self.step_seconds
         return self._virtual
 
-    def read(self) -> Optional[Snapshot]:
+    def read(self) -> Snapshot | None:
         elapsed = self._elapsed()
         lap_frac = (elapsed % LAP_SECONDS) / LAP_SECONDS
         laps = int(elapsed // LAP_SECONDS)
@@ -102,9 +101,11 @@ class MockSource(TelemetrySource):
             gap_ahead_ms=int(max(200, 1800 - (elapsed % 50) * 35)),   # catching ahead
             gap_behind_ms=int(max(300, 2200 - (elapsed % 40) * 50)),  # closing behind
             fuel=self._fuel,
-            tyre_temp=tuple(round(t, 1) for t in tyres),
+            tyre_temp=(round(tyres[0], 1), round(tyres[1], 1),
+                       round(tyres[2], 1), round(tyres[3], 1)),
             tyre_pressure=(27.4, 27.6, 27.2, 27.3),
-            brake_temp=tuple(round(b, 1) for b in brakes),
+            brake_temp=(round(brakes[0], 1), round(brakes[1], 1),
+                        round(brakes[2], 1), round(brakes[3], 1)),
             tc=0.0,
             abs=0.0,
             completed_laps=self._laps,

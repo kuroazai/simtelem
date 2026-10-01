@@ -3,7 +3,6 @@ package works with your sim."""
 from __future__ import annotations
 
 import abc
-from typing import Optional
 
 from ..models import Snapshot
 
@@ -18,13 +17,17 @@ class TelemetrySource(abc.ABC):
         """Open the underlying connection (shared memory, UDP, etc.)."""
 
     @abc.abstractmethod
-    def read(self) -> Optional[Snapshot]:
+    def read(self) -> Snapshot | None:
         """Return the latest Snapshot, or None if no fresh data is available."""
 
-    def close(self) -> None:  # optional override
-        """Release resources."""
+    def close(self) -> None:  # noqa: B027 - optional by design
+        """Release resources.
 
-    def __enter__(self) -> "TelemetrySource":
+        Deliberately not abstract: plenty of sources have nothing to release,
+        and making every one write an empty override is noise.
+        """
+
+    def __enter__(self) -> TelemetrySource:
         self.connect()
         return self
 

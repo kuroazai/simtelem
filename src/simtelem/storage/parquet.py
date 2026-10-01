@@ -9,20 +9,20 @@ Needs the tabular extra: ``pip install simtelem[tabular]``.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from .jsonl import read_session
 from .schema import frame_keys
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 # Corner fields explode into one column per wheel so the output stays flat.
 # Nested lists defeat most columnar query engines.
 _CORNERS = ("fl", "fr", "rl", "rr")
 
 
-def _flatten(frame: Dict[str, Any]) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+def _flatten(frame: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
     for key, value in frame.items():
         if not isinstance(value, list):
             out[key] = value
@@ -33,7 +33,7 @@ def _flatten(frame: Dict[str, Any]) -> Dict[str, Any]:
         elif key == "g":
             out["g_lat"], out["g_vert"], out["g_lon"] = value
         elif len(value) == 4:
-            for suffix, v in zip(_CORNERS, value):
+            for suffix, v in zip(_CORNERS, value, strict=False):
                 out[key + "_" + suffix] = v
         else:
             for i, v in enumerate(value):
@@ -41,7 +41,7 @@ def _flatten(frame: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def to_records(path: PathLike) -> List[Dict[str, Any]]:
+def to_records(path: PathLike) -> list[dict[str, Any]]:
     """Flatten a recording into one flat dict per frame."""
     return [_flatten(f) for f in read_session(path).raw_frames]
 
@@ -65,9 +65,9 @@ def to_parquet(path: PathLike, out_path: PathLike) -> Path:
     return out
 
 
-def columns() -> List[str]:
+def columns() -> list[str]:
     """Column names a flattened export produces, in schema order."""
-    names: List[str] = []
+    names: list[str] = []
     for key in frame_keys():
         if key == "wxz":
             names += ["world_x", "world_z"]

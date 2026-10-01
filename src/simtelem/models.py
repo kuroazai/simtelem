@@ -5,11 +5,10 @@ One dataclass, documented units, consistent corner ordering. Sources differ;
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional, Tuple
+from dataclasses import dataclass
 
 # Tyre / brake arrays are ordered: Front-Left, Front-Right, Rear-Left, Rear-Right
-Corners = Tuple[float, float, float, float]
+Corners = tuple[float, float, float, float]
 
 
 @dataclass
@@ -90,10 +89,10 @@ class Snapshot:
     # picked out by matching car_id against player_car_id. `others` is every
     # rival as (distance_m, side) relative to the player's heading, where side
     # is negative for left and positive for right.
-    world_pos: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    world_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     heading: float = 0.0        # radians; 0 = along the world +Z axis
     active_cars: int = 0
-    others: Tuple = ()          # ((dist_m, lateral_m, ahead_m), ...)
+    others: tuple = ()          # ((dist_m, lateral_m, ahead_m), ...)
 
     # --- static ---
     car_model: str = ""
@@ -109,7 +108,7 @@ class Snapshot:
         return str(self.gear - 1)
 
     @property
-    def laps_of_fuel(self) -> Optional[float]:
+    def laps_of_fuel(self) -> float | None:
         """Estimated laps remaining on current fuel, or None if unknown."""
         if self.fuel_per_lap > 0.05:
             return self.fuel / self.fuel_per_lap

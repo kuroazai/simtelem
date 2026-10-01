@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any, List
+from typing import Any
 
 from .base import TelemetrySource
 
@@ -28,13 +28,13 @@ def make_source(name: str, **kwargs: Any) -> TelemetrySource:
     return getattr(module, class_name)(**kwargs)
 
 
-def importable() -> List[str]:
+def importable() -> list[str]:
     """Source names whose module imports cleanly in this environment.
 
     Useful for a quick environment check: the ACC sources need Windows and the
     shared-memory package, so they will be missing on a Linux CI box.
     """
-    ok: List[str] = []
+    ok: list[str] = []
     for name, target in sorted(REGISTRY.items()):
         module_path = target.split(":")[0]
         try:

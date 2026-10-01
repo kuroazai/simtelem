@@ -9,7 +9,6 @@ import argparse
 import sys
 import time
 from pathlib import Path
-from typing import List, Optional
 
 from . import __version__
 from .sources import REGISTRY, importable, make_source
@@ -143,7 +142,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-s", "--source", default="acc", choices=sorted(REGISTRY))
     p.add_argument("-o", "--out", default="recordings", help="output directory")
     p.add_argument("-r", "--rate", type=float, default=20.0, help="poll rate in Hz")
-    p.add_argument("--seconds", type=float, default=0, help="stop after N seconds (0 = until ctrl-c)")
+    p.add_argument("--seconds", type=float, default=0,
+                   help="stop after N seconds (0 = until ctrl-c)")
     p.set_defaults(func=_cmd_record)
 
     p = sub.add_parser("inspect", help="summarise a recording")
@@ -165,7 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     return int(args.func(args))
 

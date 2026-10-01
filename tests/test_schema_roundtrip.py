@@ -10,7 +10,7 @@ import math
 import pytest
 
 from simtelem import Snapshot
-from simtelem.storage.schema import FRAME_SCHEMA, decode_frame, encode_frame, frame_keys
+from simtelem.storage.schema import decode_frame, encode_frame, frame_keys
 
 
 def _populated() -> Snapshot:
@@ -86,7 +86,7 @@ def test_roundtrip_preserves_corner_ordering():
         got = getattr(restored, attr)
         want = getattr(original, attr)
         assert len(got) == 4, f"{attr} lost its corner shape"
-        for g, w in zip(got, want):
+        for g, w in zip(got, want, strict=False):
             assert g == pytest.approx(w, abs=0.01), f"{attr} corner mismatch"
 
 

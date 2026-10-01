@@ -12,9 +12,10 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, TextIO, Union
 
 from ..models import Snapshot, fmt_laptime
 from .schema import decode_frame, encode_frame
@@ -35,9 +36,9 @@ class JsonlWriter:
         self.out_dir = Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.flush_every = flush_every
-        self.path: Optional[Path] = None
+        self.path: Path | None = None
         self.frames = 0
-        self._fh = None
+        self._fh: TextIO | None = None
         self._t0 = time.monotonic()
         self._laps = -1
         self._wrote_conditions = False
@@ -58,11 +59,13 @@ class JsonlWriter:
         })
         self._sync()
 
-    def _write(self, obj: Dict[str, Any]) -> None:
+    def _write(self, obj: dict[str, Any]) -> None:
+        assert self._fh is not None, "writer is closed"
         self._fh.write(json.dumps(obj, separators=(",", ":")) + "\n")
 
     def _sync(self) -> None:
         """Flush all the way to disk. Used where losing the line would hurt."""
+        assert self._fh is not None, "writer is closed"
         self._fh.flush()
         os.fsync(self._fh.fileno())
 
@@ -72,14 +75,14 @@ class JsonlWriter:
             self._fh.close()
             self._fh = None
 
-    def __enter__(self) -> "JsonlWriter":
+    def __enter__(self) -> JsonlWriter:
         return self
 
     def __exit__(self, *exc) -> None:
         self.close()
 
     # -- recording ---------------------------------------------------------
-    def log(self, snap: Snapshot, extra: Optional[Dict[str, Any]] = None) -> None:
+    def log(self, snap: Snapshot, extra: dict[str, Any] | None = None) -> None:
         """Record one frame. Invalid frames (sim not live) are dropped.
 
         `extra` carries source-specific values that have no Snapshot slot, for
@@ -127,6 +130,7 @@ class JsonlWriter:
         self._write(frame)
         self.frames += 1
         if self.flush_every and self.frames % self.flush_every == 0:
+            assert self._fh is not None
             self._fh.flush()
 
 
@@ -135,11 +139,11 @@ class Session:
     """A loaded recording: metadata, lap markers and decoded frames."""
 
     path: Path
-    header: Dict[str, Any] = field(default_factory=dict)
-    conditions: Dict[str, Any] = field(default_factory=dict)
-    laps: List[Dict[str, Any]] = field(default_factory=list)
-    frames: List[Snapshot] = field(default_factory=list)
-    raw_frames: List[Dict[str, Any]] = field(default_factory=list)
+    header: dict[str, Any] = field(default_factory=dict)
+    conditions: dict[str, Any] = field(default_factory=dict)
+    laps: list[dict[str, Any]] = field(default_factory=list)
+    frames: list[Snapshot] = field(default_factory=list)
+    raw_frames: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def car(self) -> str:
@@ -153,7 +157,7 @@ class Session:
         return len(self.frames)
 
     def summary(self) -> str:
-        best = min((l["last_ms"] for l in self.laps if l.get("last_ms")), default=0)
+        best = min((lap["last_ms"] for lap in self.laps if lap.get("last_ms")), default=0)
         return (
             f"{self.path.name}\n"
             f"  car     {self.car or '?'}\n"

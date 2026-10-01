@@ -24,7 +24,6 @@ import socket
 import struct
 import threading
 import time
-from typing import Dict, List, Optional
 
 # --- outbound message types ---
 REGISTER = 1
@@ -93,7 +92,7 @@ class _Reader:
         n = self.u16()
         return self._take(n).decode("utf-8", errors="replace")
 
-    def lap(self) -> Dict:
+    def lap(self) -> dict:
         ms = self.i32()
         car = self.u16()
         drv = self.u16()
@@ -102,10 +101,12 @@ class _Reader:
         valid_for_best = bool(self.u8())
         out_lap = bool(self.u8())
         in_lap = bool(self.u8())
-        # ACC uses int32 max for "no lap"
+        # ACC uses int32 max for "no lap". None is the honest value here:
+        # zero would read as a real, impossibly quick lap downstream.
+        lap_ms: int | None = ms
         if ms > 3_600_000 or ms <= 0:
-            ms = None
-        return {"ms": ms, "car": car, "driver": drv, "splits": splits,
+            lap_ms = None
+        return {"ms": lap_ms, "car": car, "driver": drv, "splits": splits,
                 "invalid": invalid, "valid_for_best": valid_for_best,
                 "out_lap": out_lap, "in_lap": in_lap}
 
@@ -115,7 +116,7 @@ def _write_string(s: str) -> bytes:
     return struct.pack("<H", len(b)) + b
 
 
-def default_config() -> Dict:
+def default_config() -> dict:
     p = os.path.join(os.path.expanduser("~"), "Documents",
                      "Assetto Corsa Competizione", "Config", "broadcasting.json")
     try:
@@ -131,8 +132,8 @@ def default_config() -> Dict:
 class ACCBroadcast:
     """Live classification for the whole field."""
 
-    def __init__(self, host: str = "127.0.0.1", port: Optional[int] = None,
-                 password: Optional[str] = None,
+    def __init__(self, host: str = "127.0.0.1", port: int | None = None,
+                 password: str | None = None,
                  name: str = "KuroRaceEngineer", interval_ms: int = 250) -> None:
         cfg = default_config()
         self.addr = (host, port or cfg["port"])
@@ -145,11 +146,11 @@ class ACCBroadcast:
         self.connected = False
         self.connection_id = -1
         self.error = ""
-        self.session: Dict = {}
-        self.entries: Dict[int, Dict] = {}     # carIndex -> static info
-        self.cars: Dict[int, Dict] = {}        # carIndex -> live state
-        self.focused_car: Optional[int] = None
-        self._sock: Optional[socket.socket] = None
+        self.session: dict = {}
+        self.entries: dict[int, dict] = {}     # carIndex -> static info
+        self.cars: dict[int, dict] = {}        # carIndex -> live state
+        self.focused_car: int | None = None
+        self._sock: socket.socket | None = None
         self._stop = False
         self._last_entry_req = 0.0
 
@@ -179,7 +180,7 @@ class ACCBroadcast:
             try:
                 data, _ = self._sock.recvfrom(65536)
                 self._handle(data)
-            except socket.timeout:
+            except TimeoutError:
                 # nothing arriving: the sim may have restarted, so re-register
                 if time.monotonic() - last_ping > 5:
                     self.connected = False
@@ -195,6 +196,7 @@ class ACCBroadcast:
                + _write_string(self.password)
                + struct.pack("<i", self.interval)
                + _write_string(self.command_password))
+        assert self._sock is not None, "connect() before registering"
         self._sock.sendto(msg, self.addr)
 
     def _request_entry_list(self) -> None:
@@ -205,6 +207,7 @@ class ACCBroadcast:
         # Only REGISTER carries the protocol-version byte. Follow-up commands
         # are msgType + connectionId; sending a version byte here makes ACC
         # silently discard the request and no entry list ever arrives.
+        assert self._sock is not None, "connect() before requesting the entry list"
         self._sock.sendto(bytes([REQUEST_ENTRY_LIST])
                           + struct.pack("<i", self.connection_id), self.addr)
 
@@ -240,7 +243,7 @@ class ACCBroadcast:
             self.error = f"parse: {type(e).__name__}: {e}"
 
     def _realtime(self, r: _Reader) -> None:
-        ev, si = r.u16(), r.u16()
+        _ev, _si = r.u16(), r.u16()
         stype, phase = r.u8(), r.u8()
         s_time, s_end = r.f32(), r.f32()
         focus = r.i32()
@@ -322,7 +325,7 @@ class ACCBroadcast:
             }
 
     # ---------- consumption ----------
-    def classification(self) -> List[Dict]:
+    def classification(self) -> list[dict]:
         """Whole field, sorted by position. Stale cars are dropped."""
         now = time.monotonic()
         with self.lock:
@@ -339,7 +342,7 @@ class ACCBroadcast:
         rows.sort(key=lambda x: (x["position"] if x["position"] > 0 else 999))
         return rows
 
-    def state(self) -> Dict:
+    def state(self) -> dict:
         with self.lock:
             sess = dict(self.session)
             n = len(self.cars)
@@ -363,7 +366,8 @@ def main() -> None:
             print(f"\n[{st['session'].get('type','?')}] cars={st['car_count']}")
             print(f"{'P':>3} {'#':>4} {'driver':<22} {'car':<28} {'best':>10} {'last':>10}")
             for c in cls[:12]:
-                fmt = lambda v: (f"{v//60000}:{(v%60000)/1000:06.3f}" if v else "-")
+                def fmt(v):
+                    return (f"{v//60000}:{(v%60000)/1000:06.3f}" if v else "-")
                 print(f"{c['position']:>3} {c['number'] or '':>4} "
                       f"{c['driver'][:22]:<22} {c['car'][:28]:<28} "
                       f"{fmt(c['best_ms']):>10} {fmt(c['last_ms']):>10}"

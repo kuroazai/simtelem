@@ -7,7 +7,7 @@ name = "simtelem"
 version = "0.1.0"
 description = "Uniform telemetry capture and storage for sim racing (ACC, Assetto Corsa, F1)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [{ name = "Fidelis Mwansa" }]
 keywords = [
@@ -19,10 +19,10 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Games/Entertainment :: Simulation",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Typing :: Typed",
@@ -58,13 +58,20 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# The ACC broadcast parser consumes the UDP packet field by field. Runs of
+# `r.u8(); r.u8(); r.u8()  # clouds, rain, wetness` say "skip these three"
+# in one line against the protocol layout. Split across nine lines it is
+# longer and harder to check against the spec, so E702 is waived here only.
+"src/simtelem/sources/acc_broadcast.py" = ["E702"]
+
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 packages = ["simtelem"]
 ignore_missing_imports = true
 warn_unused_ignores = true

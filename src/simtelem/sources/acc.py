@@ -10,8 +10,9 @@ back as 0/empty, check the installed package's field names against `_pull()` bel
 """
 from __future__ import annotations
 
+import contextlib
 import math
-from typing import Optional
+from typing import Any
 
 from ..models import Snapshot
 from .base import TelemetrySource
@@ -129,7 +130,7 @@ def _pair(v) -> tuple:
         return (0.0, 0.0)
 
 
-def _positions(g, p) -> dict:
+def _positions(g, p) -> dict[str, Any]:
     """Player world position, heading, and every rival in car-relative space.
 
     ACC gives world coordinates for all cars in one array. The player's slot is
@@ -139,7 +140,9 @@ def _positions(g, p) -> dict:
 
         lateral < 0  -> left        ahead > 0 -> in front
     """
-    out = {"world_pos": (0.0, 0.0, 0.0), "heading": 0.0,
+    # Annotated because the literal is heterogeneous: without this mypy infers
+    # dict[str, object] and every read needs a cast.
+    out: dict[str, Any] = {"world_pos": (0.0, 0.0, 0.0), "heading": 0.0,
            "active_cars": 0, "others": ()}
     try:
         coords = _g(g, "car_coordinates", default=None)
@@ -159,7 +162,7 @@ def _positions(g, p) -> dict:
         px, py, pz = _vec3(coords[idx])
         out["world_pos"] = (px, py, pz)
 
-        h = out["heading"]
+        h = float(out["heading"])
         cos_h, sin_h = math.cos(-h), math.sin(-h)
         rivals = []
         for i in range(min(n, len(coords), len(ids))):
@@ -180,6 +183,15 @@ def _positions(g, p) -> dict:
     return out
 
 
+def _flag_name(raw: object) -> str:
+    """Normalise a flag to a lowercase string.
+
+    ACC hands back an enum on some releases and a bare value on others, so take
+    `.name` when it is there and fall back to the value itself.
+    """
+    return str(getattr(raw, "name", raw)).lower()
+
+
 class ACCSource(TelemetrySource):
     name = "acc"
 
@@ -196,7 +208,7 @@ class ACCSource(TelemetrySource):
             ) from e
         self._asm = accSharedMemory()
 
-    def read(self) -> Optional[Snapshot]:
+    def read(self) -> Snapshot | None:
         if self._asm is None:
             return None
         sm = self._asm.read_shared_memory()
@@ -206,10 +218,8 @@ class ACCSource(TelemetrySource):
 
     def close(self) -> None:
         if self._asm is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._asm.close()
-            except Exception:
-                pass
             self._asm = None
 
     # --- mapping --------------------------------------------------------------
@@ -289,9 +299,11 @@ class ACCSource(TelemetrySource):
             session_time_left_ms=int(_g(g, "session_time_left", "sessionTimeLeft", default=0)),
             is_in_pit=bool(_g(g, "is_in_pit", "isInPit")),
             is_in_pit_lane=bool(_g(g, "is_in_pit_lane", "isInPitLane")),
-            flag=str(getattr(_g(g, "flag", default="none"), "name", _g(g, "flag", default="none"))).lower(),
+            flag=_flag_name(_g(g, "flag", default="none")),
             tyre_compound=_clean_str(_g(g, "tyre_compound", "tyreCompound", default="")),
-            normalized_car_position=float(_g(g, "normalized_car_position", "normalizedCarPosition")),
+            normalized_car_position=float(
+                _g(g, "normalized_car_position", "normalizedCarPosition")
+            ),
             **_positions(g, p),
             car_model=_clean_str(_g(s, "car_model", "carModel", default="")),
             track=_clean_str(_g(s, "track", default="")),

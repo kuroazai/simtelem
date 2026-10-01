@@ -22,7 +22,6 @@ from __future__ import annotations
 import socket
 import struct
 import threading
-from typing import Dict, Optional
 
 from ..models import Snapshot
 from .base import TelemetrySource
@@ -148,22 +147,22 @@ class F1UdpSource(TelemetrySource):
     def __init__(self, port: int = DEFAULT_PORT, bind: str = "0.0.0.0") -> None:
         self.port = port
         self.bind = bind
-        self._sock: Optional[socket.socket] = None
-        self._thread: Optional[threading.Thread] = None
+        self._sock: socket.socket | None = None
+        self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
 
-        self._latest: Dict[int, bytes] = {}   # packet id -> raw payload
+        self._latest: dict[int, bytes] = {}   # packet id -> raw payload
         # SessionHistory rotates through one car per frame, so it cannot share
         # the single-slot _latest cache -- key it by car index instead.
-        self._history: Dict[int, bytes] = {}
+        self._history: dict[int, bytes] = {}
         self._player_idx = 0
         self._track_length = 0
         self._packet_format = 0
         self._best_ms = 0
-        self.packet_counts: Dict[int, int] = {}
-        self.unsupported: Dict[int, str] = {}  # packet id -> why we skipped it
-        self.setup: Optional[F1Setup] = None
+        self.packet_counts: dict[int, int] = {}
+        self.unsupported: dict[int, str] = {}  # packet id -> why we skipped it
+        self.setup: F1Setup | None = None
         # Raw positional fields that Snapshot has no slot for, refreshed by read().
         # Distance in metres is what corner analysis needs -- the normalized 0..1
         # position loses resolution exactly where corners are tightest.
@@ -193,10 +192,11 @@ class F1UdpSource(TelemetrySource):
             self._sock = None
 
     def _pump(self) -> None:
+        assert self._sock is not None, "connect() before _pump()"
         while not self._stop.is_set():
             try:
                 data, _ = self._sock.recvfrom(4096)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break
@@ -229,7 +229,7 @@ class F1UdpSource(TelemetrySource):
             return None
         return item.unpack_from(data, off)
 
-    def _read_setup(self) -> Optional[F1Setup]:
+    def _read_setup(self) -> F1Setup | None:
         data = self._latest.get(PID_CAR_SETUPS)
         if data is None:
             return None
@@ -241,7 +241,7 @@ class F1UdpSource(TelemetrySource):
             return None
         return F1Setup(_SETUP.unpack_from(data, off))
 
-    def read_history(self, car_idx: Optional[int] = None) -> Optional[dict]:
+    def read_history(self, car_idx: int | None = None) -> dict | None:
         """Every completed lap for a car, with per-sector splits.
 
         Returns {laps: [...], best_lap_num, best_s1_lap, best_s2_lap, best_s3_lap}.
@@ -293,7 +293,7 @@ class F1UdpSource(TelemetrySource):
 
     # --- assembly ---
 
-    def read(self) -> Optional[Snapshot]:
+    def read(self) -> Snapshot | None:
         with self._lock:
             tel = self._car_slice(PID_CAR_TELEMETRY, _TELEMETRY)
             lap = self._car_slice(PID_LAP_DATA, _LAP)
